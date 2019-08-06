@@ -4,6 +4,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.oauth2.config.annotation.configurers.ClientDetailsServiceConfigurer;
 import org.springframework.security.oauth2.config.annotation.web.configuration.AuthorizationServerConfigurerAdapter;
 import org.springframework.security.oauth2.config.annotation.web.configuration.EnableAuthorizationServer;
@@ -16,37 +17,28 @@ import org.springframework.security.oauth2.provider.token.TokenStore;
 @EnableAuthorizationServer
 public class AuthServerConfig extends AuthorizationServerConfigurerAdapter {
 
-    private static String REALM="MY_OAUTH_REALM";
-
     @Autowired
-    private TokenStore tokenStore;
+    private BCryptPasswordEncoder passwordEncoder;
 
-    @Autowired
-    private UserApprovalHandler userApprovalHandler;
-
-    @Autowired
-    @Qualifier("authenticationManagerBean")
-    private AuthenticationManager authenticationManager;
+    @Override
+    public void configure(AuthorizationServerSecurityConfigurer security) throws Exception {
+        security
+                .tokenKeyAccess("permitAll()")
+                .checkTokenAccess("isAuthenticated()")
+                .allowFormAuthenticationForClients();
+    }
 
     @Override
     public void configure(ClientDetailsServiceConfigurer clients) throws Exception {
-        clients.inMemory()
-                .withClient("client1")
-                .authorizedGrantTypes("authorization_code")
-                .authorities("ROLE_USER")
-                .scopes("read", "write")
-                .secret("secret1")
-                .accessTokenValiditySeconds(120);
-    }
-
-    @Override
-    public void configure(AuthorizationServerEndpointsConfigurer endpoints) throws Exception {
-        endpoints.tokenStore(tokenStore).userApprovalHandler(userApprovalHandler)
-                .authenticationManager(authenticationManager);
-    }
-
-    @Override
-    public void configure(AuthorizationServerSecurityConfigurer oauthServer) throws Exception {
-        oauthServer.realm(REALM+"/client");
+        clients
+                .inMemory()
+                .withClient("clientapp").secret(passwordEncoder.encode("123456"))
+                .authorizedGrantTypes("password", "authorization_code", "refresh_token")
+                .authorities("READ_ONLY_CLIENT")
+                .scopes("read_profile_info")
+                .resourceIds("oauth2-resource")
+                .redirectUris("http://localhost:8081/login")
+                .accessTokenValiditySeconds(120)
+                .refreshTokenValiditySeconds(240000);
     }
 }
